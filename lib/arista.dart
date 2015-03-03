@@ -99,11 +99,11 @@ QueryMap MapToQueryMap (Map map) => new QueryMap(map);
 
 class Resp
 {
-    bool get success => nullOrEmpty(error);
-    bool get failed => ! success;
-    
     @Field() String error;
     @Field() int errCode;
+    
+    bool get success => nullOrEmpty(error);
+    bool get failed => ! success;
 }
 
 class DbObj extends Resp

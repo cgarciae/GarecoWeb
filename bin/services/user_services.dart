@@ -30,7 +30,7 @@ class UserServices
     @app.Route("/:id", methods: const [app.PUT])
     @Private()
     @Encode()
-    Future<User> Update (String id, @Decode() UserDb user) async
+    Future<User> Update (String id, @Decode() UserDb deltaUser) async
     {
         try 
         {   
@@ -38,7 +38,7 @@ class UserServices
             (
                 Col.user,
                 where.id (StringToId (id)),
-                getModifierBuilder (user)
+                getModifierBuilder (deltaUser)
             );
             
             return Get (id);

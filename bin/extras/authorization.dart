@@ -52,7 +52,7 @@ void AuthenticationPlugin(app.Manager manager) {
         var id = request.headers.authorization;
                 
         if (id == null)
-            return new app.ErrorResponse(403, {"error": "Authentication Error: Authorization header expected"});
+            return new app.ErrorResponse(403, new Resp()..error = "Authentication Error: Authorization header expected");
         
         print ("1");
         
@@ -68,11 +68,11 @@ void AuthenticationPlugin(app.Manager manager) {
         }
         on ArgumentError catch (e)
         {
-            return new app.ErrorResponse(403, {"error": "Authentication Error: ID length must be 24"});
+            return new app.ErrorResponse(403, new Resp()..error = "Authentication Error: ID length must be 24");
         }
         
         if (user == null)
-            return new app.ErrorResponse(403, {"error": "Authentication Error: User does not exist"});
+            return new app.ErrorResponse(403, new Resp()..error = "Authentication Error: User does not exist");
         
         
         return route(pathSegments, injector, request);
