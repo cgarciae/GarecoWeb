@@ -1,0 +1,29 @@
+## SERVER RUN##
+docker stop server && docker rm server
+docker run -d -p 80:9090 -it --name server --link db:db cgarciae/aristadart:latest
+
+## SERVER RUN TEST##
+docker stop server && docker rm server
+docker run -d -p 9090:9090 -it --name server --link db:db cgarciae/aristadart:latest
+
+## SERVER BUILD ##
+cd "/c/Users/Cristian Garcia/Documents/GitHub/aristadart"
+docker build -t cgarciae/aristadart:0.0.4 .
+docker tag cgarciae/aristadart:0.0.4 cgarciae/aristadart:latest
+
+## DB TEST RUN##
+docker stop dbtest && docker rm dbtest
+docker run -d -it -p 8095:27017 --name dbtest --volumes-from data mongo:2.6.7
+
+## DB RUN##
+docker stop db && docker rm db
+docker run -d -it --name db --volumes-from data mongo:2.6.7
+
+## DATA RUN##
+docker stop data && docker rm data
+docker run -it --name data cgarciae/data:latest
+
+## DATA BUILD ##
+cd "/c/Users/Cristian Garcia/Documents/GitHub/aristadart/dockerFiles/data"
+docker build -t cgarciae/data:0.0.1 .
+docker tag cgarciae/data:0.0.1 cgarciae/data:latest
