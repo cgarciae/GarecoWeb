@@ -1,317 +1,155 @@
 part of aristadart.server;
 
-@app.Group("/user")
-class UserServices
+@app.Group('/user')
+@Catch()
+@Encode()
+class UserServives extends AristaService<User>
 {
-    @app.DefaultRoute(methods: const [app.POST])
-    @Encode()
-    Future<User> New () async
-    {
-        try 
-        {
-            User user = new User()
-                ..id = newId();
-            
-            await db.insert
-            (
-                Col.user,
-                user
-            );
-            
-            return user;
-        }
-        catch (e, s)
-        {
-            return new User()
-                ..error = "Error: $e \nStacktrace: $s";
-        }
-    }
+    UserServives () : super (Col.user);
     
-    @app.Route("/:id", methods: const [app.PUT])
-    @Private()
-    @Encode()
-    Future<User> Update (String id, @Decode() UserDb deltaUser) async
-    {
-        try 
-        {   
-            await db.update
-            (
-                Col.user,
-                where.id (StringToId (id)),
-                getModifierBuilder (deltaUser)
-            );
-            
-            return Get (id);
-        }
-        catch (e, s)
-        {
-            return new User()
-                ..error = "Error: $e \nStacktrace: $s";
-        }
-    }
-    
-    @app.Route("/:id", methods: const [app.GET])
-    @Encode()
-    Future<User> Get (String id) async
-    {
-        try 
-        {
-            User user = await db.findOne
-            (
-                Col.user, 
-                User,
-                where
-                    .id(StringToId(id))
-            );
-            
-            if (user == null)
-                return new User()
-                    ..error = "User not found";
-            
-            return user;
-        }
-        catch (e, s)
-        {
-            return new User()
-                ..error = "Error: $e \nStacktrace: $s";
-        }
-    }
-    
-    @app.Route("/:id", methods: const [app.DELETE])
-    @Private()
-    @Encode()
-    Future<DbObj> Delete (String id) async
-    {
+    @app.DefaultRoute (methods: const [app.POST])
+    Future<User> NewOrLogin (@Decode() User user) async
+    {   
         try
-        {   
-            await db.remove
-            (
-                Col.user,
-                where.id (StringToId (id))
-            );
-            
-            return new DbObj()
-                ..id = id;
-        }
-        catch (e, s)
         {
-            return new DbObj()
-                ..error = "Error: $e \nStacktrace: $s";
+            return await Find(null, user.email, null, null);
         }
+        catch (e){}
+        
+        if (nullOrEmpty(user.email) ||
+            nullOrEmpty(user.nombre) ||
+            nullOrEmpty(user.apellido))
+            throw new Exception("Error Registrando: nombre: ${user.nombre}," +
+                                 "apellido: ${user.apellido}, email: ${user.email}");
+        
+        ProtectedUser newUser = Cast (ProtectedUser, user)
+                        ..id = newId()
+                        ..money = 0
+                        ..admin = false;
+                    
+        await insert
+        ( 
+            newUser
+        );
+          
+        return Cast(User, newUser);
+    }
+    
+    @app.Route ('/:id', methods: const [app.PUT])
+    @Private()
+    Future<User> Update (@Decode() User delta) async
+    {
+        //Borrar campos no modificables
+        delta.email = null;
+        delta.id = null;
+        
+        await UpdateGeneric(userId, delta);
+
+        return Get ();
+    }
+    
+    
+    @app.Route ('/:id', methods: const [app.GET])
+    @Private()
+    Future<User> Get () async
+    {
+        
+        User user = await db.findOne
+        (
+            Col.user,
+            User,
+            where.id(StringToId(userId))
+        );
+        
+        if (user == null)
+            throw new Exception ("Usuario no encontrado");
+          
+        return user;
+    }
+    
+    @app.Route ('/:id', methods: const [app.DELETE])
+    @Private()
+    Future<DbObj> Delete () async
+    {
+        await remove (where.id (StringToId (userId)));
+          
+        return new DbObj()
+            ..id = userId;
+    }
+    
+    @app.Route ('/:id/eventos', methods: const [app.GET])
+    @Private()
+    Future<ListEventoResp> Eventos () async
+    {
+        List<Evento> eventos = await db.find
+        (
+            Col.evento,
+            Evento,
+            where.eq("owner._id", StringToId(userId))
+        );
+        
+        return new ListEventoResp()
+            ..eventos = eventos;
+    }
+    
+    @app.Route ('/:id/isAdmin')
+    @Private()
+    Future<BoolResp> isAdmin () async
+    {
+        ProtectedUser user = await db.findOne
+        (
+            Col.user,
+            ProtectedUser,
+            where.id(StringToId(userId))
+        );
+        
+        if (user == null)
+            throw new Exception("User not found");
+        
+        return new BoolResp()
+            ..value = user.admin;
+    }
+    
+    @app.Route ('/find', methods: const [app.GET])
+    @Private (ADMIN)
+    Future<User> Find (@app.QueryParam('id') String id,
+                       @app.QueryParam('email') String email,
+                       @app.QueryParam('nombre') String nombre,
+                       @app.QueryParam('apellido') String apellido) async
+    {
+        var query = {};
+        
+        if (id != null)
+            query['_id'] = StringToId(id);
+        
+        maybeAdd(query, 'email', email);
+        maybeAdd(query, 'nombre', nombre);
+        maybeAdd(query, 'apellido', apellido);
+        
+        User user = await findOne
+        (
+            where.raw(query)
+        );
+        
+        if (user == null)
+            throw new Exception("Usuario no encontrado");
+        
+        return user;
+    }
+    
+    @app.Route ('/:id/setAsAdmin')
+    @Private(ADMIN)
+    Future<User> setAdmin (String id, @app.QueryParam() bool admin) async
+    {
+        var delta = new ProtectedUser ()
+            ..admin = admin;
+        
+        //Actualizar userId para poder actualizar usuario deseado
+        userId = id;
+        
+        return Update(delta);
     }
 }
-//
-////A public service. Anyone can create a new user
-//@app.Route("/user", methods: const[app.POST])
-//@Encode()
-//postUser(@app.Attr() MongoDb dbConn, @Decode() UserComplete user) async
-//{   
-//    print (encode(user));
-//    
-//    UserComplete foundUser = await dbConn.findOne 
-//    (
-//        Col.user,
-//        UserComplete,
-//        where
-//            .eq("email", user.email)
-//    );
-//    
-//    if (foundUser != null)
-//    {
-//        return new Resp()
-//            ..error = "User Exists";
-//    }    
-//
-//    var plainPassword = user.password;
-//    
-//    user.id = new ObjectId().toHexString();
-//    user.password = encryptPassword (user.password);
-//    user.admin = false;
-//    user.money = 0;
-//          
-//    await dbConn.insert(Col.user, user);
-//
-//    return login 
-//    (   
-//        dbConn, 
-//        new UserSecure()
-//            ..email = user.email
-//            ..password = plainPassword
-//    );
-//}
-//
-////A public service. Anyone can create a new user
-//@app.Route("/user/:id", methods: const[app.GET])
-//@Encode()
-//getUser(@app.Attr() MongoDb dbConn, String id) async
-//{
-//    User user = await dbConn.findOne
-//    (
-//        Col.user,
-//        User,
-//        where
-//            .id(StringToId(id))
-//    );
-//    
-//    if (user == null)
-//        return new Resp()
-//            ..error = "User not found";
-//    
-//        
-//    return new UserResp()
-//        ..user = user;
-//}
-//
-//@app.Route("/user/login", methods: const[app.POST])
-//@Encode()
-//login(@app.Attr() MongoDb dbConn, @Decode() UserSecure user) async
-//{   
-//    
-//    print (user.email);
-//    print (user.password);
-//    
-//    if (user.email == null || user.password == null)
-//    {
-//        print ("aca");
-//        return new IdResp()
-//            ..error = "WRONG_USER_OR_PASSWORD2";
-//    }
-//    
-//    user.password = encryptPassword(user.password);
-//    
-//    print (user.password);
-//    
-//    UserAdmin foundUser = await dbConn.findOne 
-//    (
-//        Col.user,
-//        UserAdmin,
-//        where
-//            .eq("email", user.email)
-//            .eq("password", user.password)
-//    );
-//    
-//    //User doesnt exist
-//    if (foundUser == null)
-//    {
-//        return new IdResp()
-//            ..error = "WRONG USERNAME OR PASSWORD";
-//    }
-//    
-//    
-//    session["id"] = StringToId(foundUser.id);
-//    session["admin"] = foundUser.admin;
-//    
-//    Set roles = new Set();
-//    
-//    if (foundUser.admin)
-//    {
-//        roles.add(ADMIN);
-//    }
-//    
-//    session["roles"] = roles;
-//    
-//    return new UserAdminResp()
-//        ..user = (new UserAdmin()
-//            ..id = foundUser.id
-//            ..admin = foundUser.admin
-//            ..email = foundUser.email
-//            ..nombre = foundUser.nombre
-//            ..apellido = foundUser.apellido);
-//}
-//
-//@app.Route ('/private/user/isadmin')
-//@Encode()
-//isAdmin ()
-//{
-//    try
-//    {   
-//        return new BoolResp()
-//            ..value = session['admin'];
-//    }
-//    catch (e, stacktrace)
-//    {
-//        return new BoolResp()
-//            ..error = e.toString() + stacktrace.toString();
-//    }
-//}
-//
-//
-//@app.Route ('/private/user/panelinfo')
-//@Encode()
-//panelInfo (@app.Attr() MongoDb dbConn) async
-//{
-//    var userId = session['id'];
-//        
-//    UserAdmin user = await dbConn.findOne (Col.user, UserAdmin, where.id (userId));
-//
-//    var eventIds = user.eventos.map (StringToId).toList();
-//    List<Evento> eventos = await dbConn.find (Col.evento, Evento, where.oneFrom ('_id', eventIds));
-//    
-//    return new PanelInfo()
-//            ..user = user
-//            ..eventos = eventos;
-//}
-//
-//@app.Route("/user/logout")
-//logout() 
-//{
-//    session.destroy();
-//    return {"success": true};
-//}
-//
-//@app.Route("/user/loggedin")
-//@Encode()
-//isLoggedIn() 
-//{
-//    try
-//    {
-//        ObjectId id = app.request.session['id'];
-//        
-//        if (id != null)
-//            return new IdResp()
-//                ..id = id.toHexString();
-//        
-//        return new Resp()
-//            ..error = "User not logged in";
-//    }
-//    catch (e, stacktrace)
-//    {
-//        return new Resp()
-//            ..error = e.toString() + stacktrace.toString();
-//    }
-//}
-//
-//@app.Route ('/private/userlist')
-//@Secure(ADMIN)
-//@Encode()
-//listUsers(@app.Attr() MongoDb dbConn) {
-//  
-//  return dbConn.find('user', UserAdmin);
-//  
-//}
-//
-//@app.Route ('/setadmin/:userid')
-//@Secure(ADMIN)
-//@Encode()
-//setAdmin (@app.Attr() MongoDb dbConn, String userid) async
-//{
-//    try
-//    {
-//        await dbConn.update
-//        (
-//            Col.user,
-//            where.id (StringToId (userid)),
-//            modify.set('admin', true)
-//        );
-//    
-//        return new Resp();
-//    }
-//    catch (e, stacktrace)
-//    {
-//        return new Resp()
-//            ..error = e.toString() + stacktrace.toString();
-//    }
-//}
 
 
 

@@ -1,143 +1,66 @@
 library aristadart.client;
 
-import 'package:garesco/arista.dart';
-
+//Dependencies
+import 'package:aristadart/arista.dart';
 import 'dart:async';
-import 'dart:convert';
-
 import 'package:redstone_mapper/mapper.dart';
 import 'package:angular/angular.dart';
 import 'dart:html' as dom;
-import 'package:redstone/query_map.dart';
-import 'package:fp/fp.dart';
+import "package:googleapis_auth/auth_browser.dart" as auth;
+import 'package:googleapis/oauth2/v2.dart' as oauth;
 
+//Components
+part 'components/main_controller.dart';
 part 'components/evento/evento.dart';
 part 'components/widgets/loader/loader.dart';
 part 'components/vista/vista.dart';
 part 'components/login/login.dart';
 part 'components/login/nuevo_usuario.dart';
 part 'components/home/home.dart';
-part 'routing/router.dart';
 part 'components/admin/admin.dart';
 part 'components/admin/model.dart';
 part 'components/admin/target.dart';
+part 'routing/router.dart';
 
+//Services
+part 'services/client_file_services.dart';
+part 'services/client_user_services.dart';
+part 'services/client_maquina_services.dart';
+part 'services/core/client_service.dart';
+part 'services/core/requester.dart';
+
+/////////////////
+//PROPERTIES
+/////////////////
 dom.Storage get storage => dom.window.localStorage;
+bool get loggedIn => notNullOrEmpty(userId);
+bool get loggedAdmin => storage['admin'] == true.toString();
+set loggedAdmin (bool value) => storage['admin'] = value.toString();
+String get userId => storage['userId'];
+set userId (String id) => storage['userId'] = id;
 
-class ReqParam
+/////////////////
+//FUNCTIONS
+/////////////////
+
+logout ()
 {
-    String field;
-    String value;
+    storage.remove('userId');
+    storage.remove('admin');
+}
+
+String appendRequestParams (String path, Map<String,String> params)
+{
+    path += '?';
+    for (String key in params.keys)
+    {
+        path += '${key}=${Uri.encodeQueryComponent(params[key])}&';
+    }
     
-    ReqParam (this.field, this.value);
-    
-    String get formula => field + '=' + value;
-}
-
-String reduceParams (List<ReqParam> params) =>  params.fold('?', (String acum, ReqParam elem) => (acum == '?' ? acum : acum + '&') + elem.formula);
-
-Future<dom.HttpRequest> makeRequest (String method, String path, 
-                                    {dynamic data, Map headers, void onProgress (dom.ProgressEvent p), 
-                                    String userId})
-{
-    if (userId != null)
-        addToHeaders(headers, {Header.authorization : userId});
-    
-    return dom.HttpRequest.request
-    (
-        path,
-        method: method,
-        requestHeaders: headers,
-        sendData: data,
-        onProgress: onProgress
-    );
-}
-
-Future<String> requestString (String method, String path, {dynamic data, Map headers, 
-                                void onProgress (dom.ProgressEvent p), String userId})
-{
-    return makeRequest
-    (
-        method, path, data: data, headers: headers,
-        onProgress: onProgress, userId: userId
-    ) 
-    .then ((dom.HttpRequest r) => r.responseText);
-}
-
-Future<dynamic> requestDecoded (Type type, String method, String path, {dynamic data, Map headers,
-                                void onProgress (dom.ProgressEvent p), String userId})
-{
-    return requestString 
-    (
-        method, path, data: data, headers: headers, 
-        onProgress: onProgress, userId: userId
-    )   
-    .then (decodeTo (type));
-}
-
-Future<dynamic> formRequestDecoded (Type type, String method, String path, dom.FormElement form, {Map headers, 
-                                    void onProgress (dom.ProgressEvent p), String userId})
-{
-    return requestDecoded
-    (
-        type, method, path, data: new dom.FormData (form), 
-        headers: headers, onProgress: onProgress, userId: userId
-    );
-}
-
-/**
- * Hace un request al [path] enviando [obj] codificado a `JSON` y decodifica la respuesta al tipo [type]. 
- * 
- * [method] especifica el verbo http como `GET`, `PUT` o `POST`.
- */
-Future<dynamic> jsonRequestDecoded (Type type, String method, String path, Object obj, 
-                                    {Map headers, void onProgress (dom.ProgressEvent p), String userId})
-{   
-    return requestDecoded
-    (
-        type, 
-        method, 
-        path, 
-        data: encodeJson(obj),
-        onProgress: onProgress,
-        headers: addToHeaders
-        (
-            headers,
-            {Header.contentType : ContType.applicationJson}
-        )
-    );
+    return path;
 }
 
 
-Map addToHeaders (Map headers, Map additions)
-{
-    //var contentType = {Header.contentType : ContType.applicationJson};
-        
-    if (headers != null)
-        headers.addAll (additions);
-    else
-        headers = additions;
-    
-    return headers;
-}
-
-Future<Resp> saveInCollection (String collection, Object obj){
-    return jsonRequestDecoded(Resp, Method.PUT, "private/$collection", obj);
-}
-
-Future<Resp> deleteFromCollection(String collection, String id){
-    return requestDecoded(Resp, Method.DELETE, "private/$collection/$id");
-}
-
-Future<dynamic> newFromCollection (String collection, [Type type = IdResp])
-{
-    return requestDecoded (type, Method.POST, "private/$collection");
-}
-
-Future<dynamic> getFromCollection (Type tipo, String collection, String id)
-{
-    return requestDecoded (tipo, Method.GET, "private/$collection/$id");
-}
 
 Function doIfSuccess ([dynamic f (dynamic)])
 {
@@ -170,64 +93,10 @@ ifRespSuccess (Resp resp, Function f)
     }
 }
 
-Future<Resp> pushIDtoList (String collection, String objID, String fieldName, String referenceID)
-{
-    return requestDecoded(Resp, Method.GET,'/private/push/$collection/$objID/$fieldName/$referenceID');
-}
 
-Future<Resp> pullIDfromList (String collection, String objID, String fieldName, String referenceID)
-{
-    return requestDecoded(Resp, Method.GET,'/private/pull/$collection/$objID/$fieldName/$referenceID');
-}
-
-dom.FormElement getFormElement (dom.MouseEvent event) => (event.target as dom.ButtonElement).parent as dom.FormElement;
-
-loginUser (Router router, UserAdminResp resp)
-{
-    storage['logged'] = resp.user.id;
-    storage['admin'] = resp.user.admin.toString();
-    router.go ('home', {});
-}
-
-@Injectable()
-class MainController 
-{
-    bool abierto = true;
-    String titulo = "";
-    
-    Router router;
-    
-    static MainController i;
-    
-    MainController (this.router)
-    {
-        i = this;
-    }
-    
-    logout ()
-    {
-        return requestDecoded(Resp, Method.GET,'user/logout').then((Resp resp){
-        
-        if (resp.success)
-        {
-            router.go('login', {});
-        }
-        else
-        {
-            print("Logout Failed");
-        }
-        });
-    }
-            
-    bool get isLoggedIn => loggedIn;
-    
+dom.FormElement getFormElement (dom.MouseEvent event)
+    => (event.target as dom.ButtonElement).parent as dom.FormElement;
 
 
-    go2home(){
-        router.go('home',{});
-    }
-    
-}
 
-bool get loggedIn => storage['logged'] == true.toString();
-bool get loggedAdmin => storage['admin'] == true.toString();
+

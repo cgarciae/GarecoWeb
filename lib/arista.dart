@@ -9,19 +9,13 @@ import 'dart:async';
 import 'package:fp/fp.dart' as F;
 
 part 'models/evento.dart';
-part 'models/vuforia_target.dart';
-part 'models/texture_gui.dart';
-part 'models/experiencia.dart';
 part 'models/elemento_contacto.dart';
 part 'models/elemento_info.dart';
-part 'models/vista.dart';
-part 'models/local_image_target.dart';
-part 'models/cloud_image_target.dart';
-part 'models/elemento_construccion.dart';
-part 'models/objeto_unity.dart';
 part 'models/user.dart';
-part 'models/panel_info.dart';
+part 'models/file.dart';
+part 'models/maquina.dart';
 part 'models/validation_rules/truth.dart';
+
 
 const int tipoBuild = TipoBuild.desarrollo;
 
@@ -94,16 +88,40 @@ Map ObjectToMap (dynamic obj)
     return JSON.decode (encodeJson (obj));
 }
 
+Map addOrSet (Map headers, Map additions)
+{
+    
+    if (headers != null)
+        headers.addAll (additions);
+    else
+        headers = additions;
+    
+    
+    return headers;
+}
+
+Map maybeAdd (Map map, String field, Object value)
+{
+    
+    if (value != null)
+        map [field] = value;
+    
+    return map;
+}
+
 QueryMap NewQueryMap () => new QueryMap(new Map());
 QueryMap MapToQueryMap (Map map) => new QueryMap(map);
 
+dynamic Cast (Type type, Object obj) => decode (encode(obj), type);
+dynamic Clone (Object obj) => decode (encode(obj), obj.runtimeType);
+
 class Resp
 {
-    @Field() String error;
-    @Field() int errCode;
-    
     bool get success => nullOrEmpty(error);
     bool get failed => ! success;
+    
+    @Field() String error;
+    @Field() int errCode;
 }
 
 class DbObj extends Resp
@@ -116,9 +134,14 @@ abstract class Ref extends DbObj
     @Field() String get href;
 }
 
-class PlainRef extends Ref
+class ListEventoResp extends Resp
 {
-    @Field() String href;
+    @Field() List<Evento> eventos;
+}
+
+class ListVistaResp extends Resp
+{
+    @Field() List<Vista> vistas;
 }
 
 class VistasResp extends Resp
@@ -126,20 +149,20 @@ class VistasResp extends Resp
     @Field() List<Vista> vistas = [];
 }
 
-class VistasExportableResp extends Resp
-{
-    @Field() List<VistaExportable> vistas = [];
-}
+//class VistasExportableResp extends Resp
+//{
+//    @Field() List<VistaExportable> vistas = [];
+//}
 
 class VistaResp extends Resp
 {
     @Field() Vista vista;
 }
 
-class VistaExportableResp extends Resp
-{
-    @Field() VistaExportable vista;
-}
+//class VistaExportableResp extends Resp
+//{
+//    @Field() VistaExportable vista;
+//}
 
 class IdResp extends Resp
 {
@@ -156,15 +179,15 @@ class UserResp extends Resp
     @Field() User user;
 }
 
-class UserAdminResp extends Resp
-{
-    @Field() UserAdmin user;
-}
-
-class EventoExportableResp extends Resp
-{
-    @Field() EventoExportable evento;
-}
+//class UserAdminResp extends Resp
+//{
+//    @Field() UserAdmin user;
+//}
+//
+//class EventoExportableResp extends Resp
+//{
+//    @Field() EventoExportable evento;
+//}
 
 class UrlResp extends Resp
 {
@@ -176,30 +199,30 @@ class ObjetoUnityResp extends Resp
     @Field() ObjetoUnity obj;
 }
 
-class ObjetoUnitySendResp extends Resp
-{
-    @Field() ObjetoUnitySend obj;
-}
-
-class LocalImageTargetSendResp extends Resp
-{
-    @Field() LocalImageTargetSend obj;
-}
-
-class ObjetoUnitySendListResp extends Resp
-{
-    @Field() List<ObjetoUnitySend> objs;
-}
-
-class LocalImageTargetSendListResp extends Resp
-{
-    @Field() List<LocalImageTargetSend> objs;
-}
-
-class RecoTargetResp extends Resp
-{
-    @Field() CloudImageTarget recoTarget;
-}
+//class ObjetoUnitySendResp extends Resp
+//{
+//    @Field() ObjetoUnitySend obj;
+//}
+//
+//class LocalImageTargetSendResp extends Resp
+//{
+//    @Field() LocalImageTargetSend obj;
+//}
+//
+//class ObjetoUnitySendListResp extends Resp
+//{
+//    @Field() List<ObjetoUnitySend> objs;
+//}
+//
+//class LocalImageTargetSendListResp extends Resp
+//{
+//    @Field() List<LocalImageTargetSend> objs;
+//}
+//
+//class RecoTargetResp extends Resp
+//{
+//    @Field() CloudImageTarget recoTarget;
+//}
 /*
 class MapResp extends Resp
 {
@@ -216,8 +239,9 @@ abstract class Header
 
 abstract class ContType
 {
-    static const String applicationJson = "application/json";
+    static const String applicationJson = r"application/json";
     static const String multipart = "multipart";
+    static const String imagePng = r"image/png";
 }
 
 abstract class Method
@@ -230,12 +254,26 @@ abstract class Method
 
 abstract class Col
 {
-    static final String user = 'user';
-    static final String evento = 'evento';
-    static final String vista = 'vista';
-    static final String recoTarget = 'recoTarget';
-    static final String objetoUnity = 'objetoUnity';
-    static final String localTarget = 'localTarget';
+    static const String user = 'user';
+    static const String maquina = 'maquina';
+}
+
+abstract class Categoria
+{
+    static const String injectoras = 'injectoras';
+    
+    static const Map<String,List<String>> subcategorias = const
+    {
+        injectoras : const 
+        [
+            'pet'
+         ]
+    };
+}
+
+abstract class Subcategoria
+{
+    static const String pet = 'pet';
 }
 
 abstract class ErrCode
@@ -245,3 +283,9 @@ abstract class ErrCode
 
 bool notNullOrEmpty (String s) => ! (s == null || s == '');
 bool nullOrEmpty (String s) => ! notNullOrEmpty (s);
+
+abstract class IconDir
+{
+    static const String missingImage = "images/webapp/missing_image.png";
+    static const String icon3D = "images/webapp/3D.png";
+}

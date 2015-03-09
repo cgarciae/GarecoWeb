@@ -8,7 +8,7 @@ import 'package:logging/logging.dart';
 
 
 import 'package:redstone_mapper/mapper_factory.dart';
-import 'package:garesco/arista_client.dart';
+import 'package:aristadart/arista_client.dart';
 
 
 @MirrorsUsed(targets: const[

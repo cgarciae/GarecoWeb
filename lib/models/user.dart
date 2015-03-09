@@ -1,6 +1,6 @@
 part of aristadart.general;
 
-class UserDb extends Ref
+class User extends Ref
 {
     @Field() String get href => id != null ? localHost + 'user/$id' : null;
     
@@ -8,33 +8,9 @@ class UserDb extends Ref
     @Field() String apellido;
     @Field() String email;
     
-    @Field() List<PlainRef> eventos;
 }
-
-class User extends UserDb
-{
-    
-}
-
-class UserAdmin extends User
-{
+class ProtectedUser extends User
+{   
+    @Field() num money = 0;
     @Field() bool admin;
 }
-
-class UserSecure extends User
-{
-    @Field() String password;
-}
-
-class UserMoney extends User
-{
-    @Field() num money = 0;
-}
-
-class UserComplete extends User
-{
-    @Field() num money = 0;
-    @Field() String password;
-    @Field() bool admin;
-}
-

@@ -1,5 +1,5 @@
 
-import 'package:garesco/arista.dart';
+import 'package:aristadart/arista.dart';
 
 import 'arista_server.dart';
 
@@ -10,7 +10,7 @@ import 'package:redstone_mapper_mongo/manager.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf_static/shelf_static.dart';
-import 'extras/utils.dart';
+import 'utils/utils.dart';
 import 'dart:async';
 
 main() async
@@ -19,8 +19,8 @@ main() async
     var dbManager = new MongoDbManager("mongodb://${partialDBHost}/garesco", poolSize: 3);
     
     app.addPlugin(getMapperPlugin(dbManager));
-    app.addPlugin(AuthorizationPlugin);
     app.addPlugin(AuthenticationPlugin);
+    app.addPlugin(ErrorCatchPlugin);
     
     app.setShelfHandler (createStaticHandler
     (
@@ -30,23 +30,17 @@ main() async
     ));
      
     app.setupConsoleLog();
+    
     await app.start(port: port);
     
- 
+    MongoDb dbConn = await dbManager.getConnection();  
     
+   
     
-    MongoDb dbConn = await dbManager.getConnection();
-    
-    getModifierBuilder
-    (   new ObjetoUnitySend()
-            ..nameGameObject = "hola",
-        dbConn
-    );
-    
-    UserComplete user = await dbConn.findOne
+    User user = await dbConn.findOne
     (
         Col.user,
-        UserComplete,
+        User,
         where
             .eq('admin', true)
     );
@@ -104,13 +98,13 @@ handleResponseHeader()
     if (app.request.method == "OPTIONS") 
     {
         //overwrite the current response and interrupt the chain.
-        app.response = new shelf.Response.ok(null, headers: _createCorsHeader());
+        app.response = new shelf.Response.ok(null, headers: _specialHeaders());
         app.chain.interrupt();
     } 
     else 
     {
         //process the chain and wrap the response
-        app.chain.next(() => app.response.change(headers: _createCorsHeader()));
+        app.chain.next(() => app.response.change(headers: _specialHeaders()));
     }
 }
 
@@ -132,4 +126,14 @@ authenticationFilter ()
     }
 }
 
-_createCorsHeader() => {"Access-Control-Allow-Origin": "*"};
+_specialHeaders() 
+{
+    var cross = {"Access-Control-Allow-Origin": "*"};
+    
+    if (tipoBuild <= TipoBuild.jsTesting)
+    {
+        cross['Cache-Control'] = 'private, no-store, no-cache, must-revalidate, max-age=0';
+    }
+    
+    return cross;
+}
